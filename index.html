@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>XIAO ESP32C3 コントローラー</title>
+    <style>
+        body { font-family: sans-serif; text-align: center; padding: 50px; }
+        button { font-size: 18px; padding: 15px 30px; margin: 10px; cursor: pointer; }
+        .on { background-color: #4CAF50; color: white; }
+        .off { background-color: #f44336; color: white; }
+    </style>
+</head>
+<body>
+
+    <h1>XIAO ESP32C3 BLE コントロール</h1>
+    
+    <button id="connectBtn" style="background-color: #008CBA; color: white;">ESP32C3に接続</button>
+    <br><br>
+    <button id="ledOnBtn" class="on" disabled>LED ON</button>
+    <button id="ledOffBtn" class="off" disabled>LED OFF</button>
+
+    <p id="status">ステータス: 未接続</p>
+
+    <script>
+        // Arduino側と一致させる
+        const SERVICE_UUID = "4fafc201-1fb5-459e-8fcc-c5c9c331914b";
+        const CHARACTERISTIC_UUID = "beb5483e-36e1-4688-b7f5-ea07361b26a8";
+
+        let bleDevice = null;
+        let bleCharacteristic = null;
+
+        const connectBtn = document.getElementById('connectBtn');
+        const ledOnBtn = document.getElementById('ledOnBtn');
+        const ledOffBtn = document.getElementById('ledOffBtn');
+        const statusText = document.getElementById('status');
+
+        // 接続処理
+        connectBtn.addEventListener('click', async () => {
+            try {
+                statusText.innerText = "デバイスを探しています...";
+                // デバイスの要求
+                bleDevice = await navigator.bluetooth.requestDevice({
+                    filters: [{ name: 'XIAO_ESP32C3_Ctrl' }],
+                    optionalServices: [SERVICE_UUID]
+                });
+
+                statusText.innerText = "GATTサーバーに接続中...";
+                const server = await bleDevice.gatt.connect();
+
+                statusText.innerText = "サービスを取得中...";
+                const service = await server.getPrimaryService(SERVICE_UUID);
+
+                statusText.innerText = "キャラクタリスティックを取得中...";
+                bleCharacteristic = await service.getCharacteristic(CHARACTERISTIC_UUID);
+
+                statusText.innerText = "接続成功！";
+                ledOnBtn.disabled = false;
+                ledOffBtn.disabled = false;
+            } catch (error) {
+                console.error(error);
+                statusText.innerText = "接続失敗: " + error;
+            }
+        });
+
+        // データ送信関数
+        async function sendCommand(command) {
+            if (!bleCharacteristic) return;
+            try {
+                const encoder = new TextEncoder();
+                await bleCharacteristic.writeValue(encoder.encode(command));
+                console.log("送信成功: " + command);
+            } catch (error) {
+                console.error("送信失敗:", error);
+            }
+        }
+
+        ledOnBtn.addEventListener('click', () => sendCommand('1'));
+        ledOffBtn.addEventListener('click', () => sendCommand('0'));
+    </script>
+</body>
+</html>
